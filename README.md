@@ -139,7 +139,12 @@ skill 内置了内审和专家评审工作流，可用于：
 
 ## 跨平台使用说明
 
-这个仓库分为两层：
+简单说：
+
+- Codex 只是当前 npm 安装器默认适配的平台。
+- `SKILL.md`、`references/`、`assets/`、`scripts/` 可以给 Claude、ChatGPT 自定义 GPT/项目知识库、Dify、Coze、Open WebUI、LangGraph/Agent 项目等复用。
+
+这个仓库分为三层：
 
 - **技能知识层**：`skill/di-bao-monitoring/SKILL.md`、`references/`、`assets/`。这部分是通用的，适合给 Codex、Claude、ChatGPT 自定义 GPT/项目知识库、Dify、Coze、Open WebUI、LangGraph/Agent 项目等智能体参考或加载。
 - **脚本工具层**：`skill/di-bao-monitoring/scripts/`。这部分是普通 Python/Shell 脚本，可在有 Python、Node.js、LibreOffice 等依赖的电脑或服务器上独立运行。
@@ -205,7 +210,7 @@ di-bao-monitoring-skill install --force
 安装指定版本：
 
 ```bash
-npm install -g github:railwise-cn/di-bao-monitoring-skill#v0.1.2
+npm install -g github:railwise-cn/di-bao-monitoring-skill#v0.1.3
 di-bao-monitoring-skill install --force
 ```
 
@@ -463,9 +468,9 @@ git push
 发布新版本时，更新 `package.json` 中的 `version`，再打 tag：
 
 ```bash
-git tag v0.1.2
-git push origin main v0.1.2
-gh release create v0.1.2 --title "v0.1.2" --notes "更新说明"
+git tag v0.1.3
+git push origin main v0.1.3
+gh release create v0.1.3 --title "v0.1.3" --notes "更新说明"
 ```
 
 ## English Summary
