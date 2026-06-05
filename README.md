@@ -210,7 +210,7 @@ di-bao-monitoring-skill install --force
 安装指定版本：
 
 ```bash
-npm install -g github:railwise-cn/di-bao-monitoring-skill#v0.1.3
+npm install -g github:railwise-cn/di-bao-monitoring-skill#v0.1.4
 di-bao-monitoring-skill install --force
 ```
 
@@ -278,6 +278,7 @@ di-bao-monitoring-skill version
 | `DIBAO_WORKDIR` | 输出工作目录，默认当前目录 |
 | `DIBAO_OUTPUT_DIR` | 输出目录，默认 `平台数据输出` |
 | `DIBAO_REPORT_TEMPLATE` | 快报模板 xlsx 路径 |
+| `DIBAO_FULL_REPORT_TEMPLATE` | 完整报表模板 xlsx 路径；默认使用 `assets/完整报表模板.xlsx` |
 | `DIBAO_INITIAL_REPORT` | 初始值报告 docx 路径，用于提取项目实施单位 |
 | `DIBAO_IMAGE_LEFT` | 左侧示意图/工况图 |
 | `DIBAO_IMAGE_RIGHT` | 右侧布点图/现场图 |
@@ -316,6 +317,10 @@ export DIBAO_CUTOFF_TIME="2026-06-05 12:00:00"
 
 - Excel：`平台数据输出/{{项目全称}}_{{YYYYMMDD}}_{{小时}}点_4小时快报.xlsx`
 - PDF：`平台数据输出/pdfcheck/{{项目全称}}_{{YYYYMMDD}}_{{小时}}点_4小时快报.pdf`
+- 完整报表 Excel：`平台数据输出/{{项目全称}}_{{YYYYMMDD}}_{{小时}}点_4小时完整报表.xlsx`
+- 完整报表 PDF：`平台数据输出/pdfcheck/{{项目全称}}_{{YYYYMMDD}}_{{小时}}点_4小时完整报表.pdf`
+
+完整报表默认 5 页：封面、全站仪快报、桥墩沉降明细、桥墩水平位移明细、桥墩倾斜明细；`适配设置页` 会在导出时隐藏，不进入 PDF。
 
 说明：
 
@@ -383,8 +388,8 @@ di-bao-monitoring-skill/
 | 脚本 | 用途 |
 |---|---|
 | `fetch_adjusted_total_station.py` | 登录平台，抓取平差批次、平差报告、点位坐标、平台初始值，生成 CSV |
-| `build_crossing_total_station_xlsx.py` | 根据 CSV、模板、图片和点名映射生成 A3 横版快报 |
-| `run_crossing_4h_report.sh` | 通用 4 小时快报导出脚本 |
+| `build_crossing_total_station_xlsx.py` | 根据 CSV、模板、图片和点名映射生成 A3 横版快报；使用完整模板时同步填封面和各测项明细页 |
+| `run_crossing_4h_report.sh` | 通用 4 小时快报导出脚本；默认同时导出单页快报和 5 页完整报表 |
 | `summarize_crossing_total_station.py` | 对结构化监测 CSV 做汇总和预警判定 |
 | `evaluate_alarms.py` | 对通用监测数据进行阈值判定 |
 
@@ -468,9 +473,9 @@ git push
 发布新版本时，更新 `package.json` 中的 `version`，再打 tag：
 
 ```bash
-git tag v0.1.3
-git push origin main v0.1.3
-gh release create v0.1.3 --title "v0.1.3" --notes "更新说明"
+git tag v0.1.4
+git push origin main v0.1.4
+gh release create v0.1.4 --title "v0.1.4" --notes "更新说明"
 ```
 
 ## English Summary

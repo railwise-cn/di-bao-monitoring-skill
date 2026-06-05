@@ -1311,7 +1311,7 @@ def is_directional_template(template_path: Path) -> bool:
         wb = load_workbook(template_path, read_only=True, data_only=False)
     except Exception:
         return False
-    ws = wb.active
+    ws = wb["全站仪快报"] if "全站仪快报" in wb.sheetnames else wb.active
     values = " ".join(str(ws[cell].value or "") for cell in ("C22", "K22", "S22", "Q24", "Y24"))
     return ws.max_row >= 36 and "桥墩沉降" in values and "水平位移" in values and "桥墩倾斜" in values
 
@@ -1341,6 +1341,229 @@ def actual_batch_times(input_csv: Path) -> tuple[str, str]:
     current_path = input_csv.with_name(input_csv.name.replace("_adjusted_total_station.csv", "_point_coords_current.json"))
     previous_path = input_csv.with_name(input_csv.name.replace("_adjusted_total_station.csv", "_point_coords_previous.json"))
     return first_survey_time_from_json(previous_path), first_survey_time_from_json(current_path)
+
+
+def load_named_coord_records(path: Path) -> dict[str, dict[str, float]]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    rows = data if isinstance(data, list) else data.get("list", []) if isinstance(data, dict) else []
+    records: dict[str, dict[str, float]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        name = str(row.get("PointName") or row.get("point_id") or "").strip()
+        if not name:
+            continue
+        x = parse_float(row.get("X"))
+        y = parse_float(row.get("Y"))
+        h = parse_float(row.get("H"))
+        if x is None or y is None or h is None:
+            continue
+        records[name] = {"X": x, "Y": y, "H": h}
+    return records
+
+
+def coord_record_paths(input_csv: Path) -> tuple[Path, Path]:
+    current_path = input_csv.with_name(input_csv.name.replace("_adjusted_total_station.csv", "_point_coords_current.json"))
+    previous_path = input_csv.with_name(input_csv.name.replace("_adjusted_total_station.csv", "_point_coords_previous.json"))
+    return previous_path, current_path
+
+
+def initial_coord_records_from_rows(rows: list[dict[str, str]]) -> dict[str, dict[str, float]]:
+    records: dict[str, dict[str, float]] = {}
+    for row in rows:
+        name = str(row.get("point_id") or "").strip()
+        if not name or name in records:
+            continue
+        x = parse_float(row.get("initial_x_m"))
+        y = parse_float(row.get("initial_y_m"))
+        h = parse_float(row.get("initial_h_m"))
+        if x is None or y is None or h is None:
+            continue
+        records[name] = {"X": x, "Y": y, "H": h}
+    return records
+
+
+def coord_value(records: dict[str, dict[str, float]], point: str, axis: str) -> float | str:
+    value = records.get(point, {}).get(axis)
+    return value if value is not None else ""
+
+
+def set_coord_triplet(
+    ws,
+    row_index: int,
+    point: str,
+    initial_coords: dict[str, dict[str, float]],
+    previous_coords: dict[str, dict[str, float]],
+    current_coords: dict[str, dict[str, float]],
+) -> None:
+    for offset, axis in enumerate(("X", "Y", "H")):
+        ws.cell(row_index, 5 + offset).value = coord_value(initial_coords, point, axis)
+        ws.cell(row_index, 8 + offset).value = coord_value(previous_coords, point, axis)
+        ws.cell(row_index, 11 + offset).value = coord_value(current_coords, point, axis)
+
+
+def set_coord_xy_groups(
+    ws,
+    row_index: int,
+    point: str,
+    initial_coords: dict[str, dict[str, float]],
+    previous_coords: dict[str, dict[str, float]],
+    current_coords: dict[str, dict[str, float]],
+) -> None:
+    ws.cell(row_index, 5).value = coord_value(initial_coords, point, "X")
+    ws.cell(row_index, 6).value = coord_value(initial_coords, point, "Y")
+    ws.cell(row_index, 7).value = coord_value(previous_coords, point, "X")
+    ws.cell(row_index, 8).value = coord_value(previous_coords, point, "Y")
+    ws.cell(row_index, 9).value = coord_value(current_coords, point, "X")
+    ws.cell(row_index, 10).value = coord_value(current_coords, point, "Y")
+
+
+def format_report_date(value: str) -> str:
+    parsed = parse_report_datetime(value)
+    if parsed is None:
+        return value
+    return parsed.strftime("%Y/%-m/%-d %H:%M")
+
+
+def monitoring_count_and_hours(first_time: str, current_time: str, interval_hours: int = 4) -> tuple[int | str, int | str]:
+    first_dt = parse_report_datetime(first_time)
+    current_dt = parse_report_datetime(current_time)
+    if first_dt is None or current_dt is None:
+        return "", ""
+    hours = int(round((current_dt - first_dt).total_seconds() / 3600))
+    if hours < 0:
+        return "", ""
+    return hours // interval_hours + 1, hours
+
+
+def spacing_formula(row_a: int, row_b: int) -> str:
+    return (
+        f"SQRT(($E${row_a}-$E${row_b})*($E${row_a}-$E${row_b})+"
+        f"($F${row_a}-$F${row_b})*($F${row_a}-$F${row_b})+"
+        f"($G${row_a}-$G${row_b})*($G${row_a}-$G${row_b}))"
+    )
+
+
+def fill_complete_detail_sheets(
+    wb,
+    input_csv: Path,
+    rows: list[dict[str, str]],
+    project_name: str,
+    previous_time: str,
+    current_time: str,
+    condition_text: str,
+    implementation_unit: str,
+) -> None:
+    required = {"封面", "桥墩沉降（自动化）", "桥墩水平位移（自动化）", "桥墩倾斜（自动化）"}
+    if not required.issubset(set(wb.sheetnames)):
+        return
+
+    if "适配设置页" in wb.sheetnames:
+        wb["适配设置页"].sheet_state = "hidden"
+    if "封面" in wb.sheetnames:
+        wb.active = wb.sheetnames.index("封面")
+
+    first_time = "2026/6/4 16:00"
+    monitor_count, total_hours = monitoring_count_and_hours(first_time, current_time)
+    previous_path, current_path = coord_record_paths(input_csv)
+    previous_coords = load_named_coord_records(previous_path)
+    current_coords = load_named_coord_records(current_path)
+    initial_coords = initial_coord_records_from_rows(rows)
+    condition_full = f"当前工况：{condition_text}。本次自动化全站仪数据取自监测平台，监测时间 {current_time}；出报频率：4h。"
+
+    cover = wb["封面"]
+    cover["A4"] = project_name.replace("施工期间", "施工期间\n")
+    cover["A7"] = "监测时报表"
+    cover["A28"] = implementation_unit
+    cover["A31"] = current_time
+
+    settlement = wb["桥墩沉降（自动化）"]
+    settlement["A2"] = f"监测单位：{implementation_unit}"
+    settlement["A4"] = f"项目名称：{project_name}"
+    settlement["D6"] = first_time.split()[0]
+    settlement["H5"] = monitor_count
+    settlement["H6"] = 4
+    settlement["H7"] = total_hours
+    settlement["D7"] = previous_time
+    settlement["D8"] = current_time
+    settlement["N7"] = condition_full
+    settlement["N4"] = settlement["H5"].value
+    for row_index, suffix in ((12, "12"), (13, "13")):
+        point = lower_point_for_pier(suffix)
+        settlement[f"A{row_index}"] = bridge_display_code("MCC", suffix)
+        settlement[f"B{row_index}"] = f"=(O{row_index}-M{row_index})*1000"
+        settlement[f"E{row_index}"] = f"=B{row_index}/4"
+        settlement[f"H{row_index}"] = f"=(O{row_index}-J{row_index})*1000"
+        settlement[f"J{row_index}"] = coord_value(initial_coords, point, "H")
+        settlement[f"M{row_index}"] = coord_value(previous_coords, point, "H")
+        settlement[f"O{row_index}"] = coord_value(current_coords, point, "H")
+        settlement[f"Q{row_index}"] = f"{int(suffix)}#桥墩"
+    settlement["A32"] = "报警值：预警值±5mm，报警值±7mm，控制值±10mm。"
+    settlement.print_area = "A1:R44"
+
+    horizontal = wb["桥墩水平位移（自动化）"]
+    horizontal["A2"] = f"监测单位：{implementation_unit}"
+    horizontal["A4"] = f"项目名称：{project_name}"
+    horizontal["D6"] = first_time
+    horizontal["G5"] = monitor_count
+    horizontal["G6"] = 4
+    horizontal["G7"] = total_hours
+    horizontal["D7"] = previous_time
+    horizontal["D8"] = current_time
+    horizontal["K7"] = condition_full
+    for row_index, suffix, direction in ((12, "12", "东西方向"), (13, "13", "东西方向"), (14, "12", "南北方向"), (15, "13", "南北方向")):
+        point = lower_point_for_pier(suffix)
+        horizontal[f"A{row_index}"] = bridge_display_code("MCW", suffix)
+        if direction == "东西方向":
+            horizontal[f"B{row_index}"] = f"=(J{row_index}-H{row_index})*1000"
+            horizontal[f"D{row_index}"] = f"=(J{row_index}-F{row_index})*1000"
+        else:
+            horizontal[f"B{row_index}"] = f"=(I{row_index}-G{row_index})*1000"
+            horizontal[f"D{row_index}"] = f"=(I{row_index}-E{row_index})*1000"
+        horizontal[f"C{row_index}"] = f"=B{row_index}/4"
+        set_coord_xy_groups(horizontal, row_index, point, initial_coords, previous_coords, current_coords)
+        horizontal[f"K{row_index}"] = f"{int(suffix)}#桥墩"
+        horizontal[f"L{row_index}"] = direction
+    horizontal["A32"] = "报警值：预警值±5mm，报警值±7mm，控制值±10mm。"
+    horizontal.print_area = "A1:L47"
+
+    tilt = wb["桥墩倾斜（自动化）"]
+    tilt["A2"] = f"监测单位：{implementation_unit}"
+    tilt["A4"] = f"项目名称：{project_name}"
+    tilt["D6"] = first_time
+    tilt["H5"] = monitor_count
+    tilt["H6"] = 4
+    tilt["H7"] = total_hours
+    tilt["D7"] = previous_time
+    tilt["D8"] = current_time
+    tilt["M7"] = condition_full
+
+    for start_row, suffix, direction in ((12, "12", "东西方向"), (14, "13", "东西方向"), (16, "12", "南北方向"), (18, "13", "南北方向")):
+        top = top_point_for_pier(suffix)
+        lower = lower_point_for_pier(suffix)
+        tilt[f"A{start_row}"] = bridge_display_code("MCQX", suffix)
+        if direction == "东西方向":
+            tilt[f"B{start_row}"] = f"=((L{start_row}-I{start_row})-(L{start_row+1}-I{start_row+1}))/{spacing_formula(start_row, start_row+1)}*1000"
+            tilt[f"D{start_row}"] = f"=((L{start_row}-F{start_row})-(L{start_row+1}-F{start_row+1}))/{spacing_formula(start_row, start_row+1)}*1000"
+        else:
+            tilt[f"B{start_row}"] = f"=((K{start_row}-H{start_row})-(K{start_row+1}-H{start_row+1}))/{spacing_formula(start_row, start_row+1)}*1000"
+            tilt[f"D{start_row}"] = f"=((K{start_row}-E{start_row})-(K{start_row+1}-E{start_row+1}))/{spacing_formula(start_row, start_row+1)}*1000"
+        tilt[f"C{start_row}"] = f"=B{start_row}/4"
+        set_coord_triplet(tilt, start_row, top, initial_coords, previous_coords, current_coords)
+        set_coord_triplet(tilt, start_row + 1, lower, initial_coords, previous_coords, current_coords)
+        tilt[f"N{start_row}"] = f"{int(suffix)}#桥墩"
+        tilt[f"O{start_row}"] = direction
+    tilt["A32"] = "报警值：倾斜：预警值1.0‰，报警值1.4‰，控制值2.0‰。"
+    tilt.print_area = "A1:O47"
+
+    for sheet_name in ("封面", "桥墩沉降（自动化）", "桥墩水平位移（自动化）", "桥墩倾斜（自动化）"):
+        ws = wb[sheet_name]
+        ws.sheet_properties.pageSetUpPr.fitToPage = True
+        ws.page_setup.fitToWidth = 1
+        ws.page_setup.fitToHeight = 1
 
 
 def direction_item(direction: str) -> str:
@@ -1496,7 +1719,7 @@ def build_directional_template_report(
         for point, data in all_pivot.items()
         if not is_station_or_control_point(point)
     }
-    manual_overrides_path = manual_overrides_path or input_csv.with_name("manual_metric_overrides.json")
+    manual_overrides_path = manual_overrides_path or input_csv.with_name("manual_metric_overrides_prj651.json")
     apply_manual_metric_overrides(pivot, rows, manual_overrides_path)
     point_config_path = point_config_path or auto_point_config_path(input_csv)
     point_geometry = point_geometry_from_rows(rows) or load_point_geometry(point_config_path)
@@ -1507,8 +1730,6 @@ def build_directional_template_report(
     current_time = first_value(rows, "current_time", "本次监测时间") or "{{本次监测时间}}"
     previous_time = first_value(rows, "previous_time", "上次监测时间") or "{{上次监测时间}}"
     actual_previous, actual_current = actual_batch_times(input_csv)
-    previous_time = actual_previous or previous_time
-    current_time = actual_current or current_time
     method = first_value(rows, "monitoring_method", "监测方式") or "自动化全站仪"
     cadence = first_value(rows, "report_cadence", "出报间隔") or "{{15min/2h/4h}}"
     condition = work_condition_override or first_value(rows, "work_condition", "ring_no", "施工工况") or "{{施工工况}}"
@@ -1521,7 +1742,7 @@ def build_directional_template_report(
     )
 
     wb = load_workbook(template_path)
-    ws = wb.active
+    ws = wb["全站仪快报"] if "全站仪快报" in wb.sheetnames else wb.active
     temporary_images: list[Path] = []
     green_fill = PatternFill("solid", fgColor="00B050")
     white_font = Font(name="SimSun", size=9, color="FFFFFF", bold=True)
@@ -1710,6 +1931,17 @@ def build_directional_template_report(
     ws.page_setup.fitToWidth = 1
     ws.page_setup.fitToHeight = 1
 
+    fill_complete_detail_sheets(
+        wb,
+        input_csv,
+        rows,
+        project_name,
+        previous_time,
+        current_time,
+        condition_text,
+        implementation_unit,
+    )
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(output_path)
     for temp_image in temporary_images:
@@ -1762,7 +1994,7 @@ def build_template_report(
         for point, data in all_pivot.items()
         if not is_station_or_control_point(point)
     }
-    manual_overrides_path = manual_overrides_path or input_csv.with_name("manual_metric_overrides.json")
+    manual_overrides_path = manual_overrides_path or input_csv.with_name("manual_metric_overrides_prj651.json")
     apply_manual_metric_overrides(pivot, rows, manual_overrides_path)
     alias_map = load_alias_map(point_alias_map_path)
     maxima = pick_maxima(pivot)

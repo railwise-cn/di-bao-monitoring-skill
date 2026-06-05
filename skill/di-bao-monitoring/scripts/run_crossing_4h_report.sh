@@ -12,6 +12,7 @@ ADJUST_NET_ID="${DIBAO_ADJUST_NET_ID:-}"
 PYTHON_BIN="${DIBAO_PYTHON:-python3}"
 SOFFICE_BIN="${DIBAO_SOFFICE:-/Applications/LibreOffice.app/Contents/MacOS/soffice}"
 TEMPLATE_PATH="${DIBAO_REPORT_TEMPLATE:-$SCRIPT_DIR/../assets/快报模板.xlsx}"
+FULL_TEMPLATE_PATH="${DIBAO_FULL_REPORT_TEMPLATE:-$SCRIPT_DIR/../assets/完整报表模板.xlsx}"
 INITIAL_REPORT="${DIBAO_INITIAL_REPORT:-}"
 IMAGE_LEFT="${DIBAO_IMAGE_LEFT:-}"
 IMAGE_RIGHT="${DIBAO_IMAGE_RIGHT:-}"
@@ -91,6 +92,8 @@ FETCH_ARGS=(
 CSV_PATH="$OUTPUT_DIR/${PREFIX}_adjusted_total_station.csv"
 XLSX_PATH="$OUTPUT_DIR/${PROJECT_NAME}_${DATE_LABEL}_${HOUR_LABEL}点_4小时快报.xlsx"
 PDF_PATH="$OUTPUT_DIR/pdfcheck/${PROJECT_NAME}_${DATE_LABEL}_${HOUR_LABEL}点_4小时快报.pdf"
+FULL_XLSX_PATH="$OUTPUT_DIR/${PROJECT_NAME}_${DATE_LABEL}_${HOUR_LABEL}点_4小时完整报表.xlsx"
+FULL_PDF_PATH="$OUTPUT_DIR/pdfcheck/${PROJECT_NAME}_${DATE_LABEL}_${HOUR_LABEL}点_4小时完整报表.pdf"
 
 BUILD_ARGS=(
   "$SCRIPT_DIR/build_crossing_total_station_xlsx.py"
@@ -112,6 +115,27 @@ else
   echo "LibreOffice not found at $SOFFICE_BIN; skipped PDF export." >&2
 fi
 
+if [[ -f "$FULL_TEMPLATE_PATH" ]]; then
+  FULL_BUILD_ARGS=(
+    "$SCRIPT_DIR/build_crossing_total_station_xlsx.py"
+    "$CSV_PATH"
+    --template "$FULL_TEMPLATE_PATH"
+    --work-condition "$WORK_CONDITION"
+    --output "$FULL_XLSX_PATH"
+  )
+  [[ -n "$INITIAL_REPORT" ]] && FULL_BUILD_ARGS+=(--initial-report "$INITIAL_REPORT")
+  [[ -n "$IMAGE_LEFT" ]] && FULL_BUILD_ARGS+=(--image "$IMAGE_LEFT")
+  [[ -n "$IMAGE_RIGHT" ]] && FULL_BUILD_ARGS+=(--image-right "$IMAGE_RIGHT")
+  [[ -n "$POINT_ALIAS_MAP" ]] && FULL_BUILD_ARGS+=(--point-alias-map "$POINT_ALIAS_MAP")
+  [[ -n "$MANUAL_OVERRIDES" ]] && FULL_BUILD_ARGS+=(--manual-overrides "$MANUAL_OVERRIDES")
+  "$PYTHON_BIN" "${FULL_BUILD_ARGS[@]}"
+  if [[ -x "$SOFFICE_BIN" ]]; then
+    "$SOFFICE_BIN" --headless --convert-to pdf --outdir "$OUTPUT_DIR/pdfcheck" "$FULL_XLSX_PATH"
+  fi
+fi
+
 echo "Exported:"
 echo "xlsx=$XLSX_PATH"
 [[ -f "$PDF_PATH" ]] && echo "pdf=$PDF_PATH"
+[[ -f "$FULL_XLSX_PATH" ]] && echo "full_xlsx=$FULL_XLSX_PATH"
+[[ -f "$FULL_PDF_PATH" ]] && echo "full_pdf=$FULL_PDF_PATH"
