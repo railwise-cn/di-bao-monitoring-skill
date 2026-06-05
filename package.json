@@ -1,0 +1,30 @@
+{
+  "name": "di-bao-monitoring-skill",
+  "version": "0.1.0",
+  "description": "Codex skill for rail transit control protection zone monitoring reports and crossing-stage automated total-station quick reports.",
+  "license": "MIT",
+  "type": "commonjs",
+  "bin": {
+    "di-bao-monitoring-skill": "bin/di-bao-monitoring-skill.js"
+  },
+  "files": [
+    "bin",
+    "skill",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node bin/di-bao-monitoring-skill.js version && node bin/di-bao-monitoring-skill.js where --target /tmp/di-bao-monitoring-skill-test"
+  },
+  "keywords": [
+    "codex",
+    "skill",
+    "monitoring",
+    "rail-transit",
+    "total-station",
+    "geotechnical"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,9 @@
+.git/
+.github/
+node_modules/
+*.log
+.DS_Store
+__pycache__/
+*.pyc
+平台数据输出/
+pdfcheck/
