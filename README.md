@@ -1,8 +1,10 @@
 # 地保监测 Skill
 
-`di-bao-monitoring-skill` 是一个面向 Codex 的地保监测专业技能包，用于轨道交通控制保护区、地铁保护区、既有线路保护区等第三方监测工作。
+`di-bao-monitoring-skill` 是一个面向 AI 智能体的地保监测专业技能包，用于轨道交通控制保护区、地铁保护区、既有线路保护区等第三方监测工作。
 
 它默认以中文使用，适合编制监测方案、初始值资料、日报周报月报、预警/报警/消警资料、项目总结，以及穿越工况下的 15 分钟、2 小时、4 小时自动化全站仪监测快报。
+
+当前 npm 安装器默认适配 Codex 的 skills 目录；技能内容本身是 Markdown + 模板 + 脚本结构，其他支持自定义技能、知识库、系统提示词或工具脚本的智能体平台也可以复用。
 
 GitHub 仓库：
 
@@ -34,7 +36,7 @@ GitHub 仓库：
 
 ### 方案编制前置资料
 
-Codex 使用这个 skill 编制方案时，会先建立 `project_profile` 项目资料卡，并尽量从用户给的文件、图纸、已有方案、报表封面或 `info` 表中提取信息。缺失字段会保留占位符，不会把参考项目内容硬套到新项目。
+AI 助手使用这个 skill 编制方案时，会先建立 `project_profile` 项目资料卡，并尽量从用户给的文件、图纸、已有方案、报表封面或 `info` 表中提取信息。缺失字段会保留占位符，不会把参考项目内容硬套到新项目。
 
 常见资料清单：
 
@@ -135,7 +137,26 @@ skill 内置了内审和专家评审工作流，可用于：
 ~/.codex/skills/di-bao-monitoring/references/review-response-template.md
 ```
 
-## 安装
+## 跨平台使用说明
+
+这个仓库分为两层：
+
+- **技能知识层**：`skill/di-bao-monitoring/SKILL.md`、`references/`、`assets/`。这部分是通用的，适合给 Codex、Claude、ChatGPT 自定义 GPT/项目知识库、Dify、Coze、Open WebUI、LangGraph/Agent 项目等智能体参考或加载。
+- **脚本工具层**：`skill/di-bao-monitoring/scripts/`。这部分是普通 Python/Shell 脚本，可在有 Python、Node.js、LibreOffice 等依赖的电脑或服务器上独立运行。
+- **安装器层**：`bin/di-bao-monitoring-skill.js`。这部分目前主要负责把 skill 安装到 Codex 默认目录 `~/.codex/skills/di-bao-monitoring`。
+
+如果不是 Codex 平台，可以手动复制：
+
+```text
+skill/di-bao-monitoring/SKILL.md
+skill/di-bao-monitoring/references/
+skill/di-bao-monitoring/assets/
+skill/di-bao-monitoring/scripts/
+```
+
+导入目标平台时，建议把 `SKILL.md` 作为主说明，把 `references/` 作为可检索参考资料，把 `assets/` 作为模板，把 `scripts/` 作为可调用工具或本地脚本。
+
+## Codex 安装
 
 一次性安装或更新到 Codex skills 目录：
 
@@ -184,7 +205,7 @@ di-bao-monitoring-skill install --force
 安装指定版本：
 
 ```bash
-npm install -g github:railwise-cn/di-bao-monitoring-skill#v0.1.1
+npm install -g github:railwise-cn/di-bao-monitoring-skill#v0.1.2
 di-bao-monitoring-skill install --force
 ```
 
@@ -200,9 +221,9 @@ di-bao-monitoring-skill where
 di-bao-monitoring-skill version
 ```
 
-## 在 Codex 中使用
+## 在 AI 助手中使用
 
-安装后，在 Codex 对话中可以这样说：
+在 Codex 中安装后，可以这样说；在其他智能体平台中，也可以把下面的话作为调用这个技能的提示词：
 
 ```text
 使用 $di-bao-monitoring，帮我编制这个项目的地保监测方案。
@@ -344,7 +365,7 @@ di-bao-monitoring-skill/
 ├── skill/
 │   └── di-bao-monitoring/
 │       ├── SKILL.md                      # skill 入口
-│       ├── agents/openai.yaml            # Codex UI 元数据
+│       ├── agents/openai.yaml            # OpenAI/Codex UI 元数据
 │       ├── assets/                       # 模板和输入样例
 │       ├── references/                   # 监测工作流和报表规则
 │       └── scripts/                      # 平台取数、计算、报表生成脚本
@@ -442,14 +463,14 @@ git push
 发布新版本时，更新 `package.json` 中的 `version`，再打 tag：
 
 ```bash
-git tag v0.1.1
-git push origin main v0.1.1
-gh release create v0.1.1 --title "v0.1.1" --notes "更新说明"
+git tag v0.1.2
+git push origin main v0.1.2
+gh release create v0.1.2 --title "v0.1.2" --notes "更新说明"
 ```
 
 ## English Summary
 
-`di-bao-monitoring-skill` is a Codex skill package for rail transit protection-zone monitoring workflows. It supports Chinese-first report drafting, monitoring plans, initial-value documents, periodic reports, warning workflows, and crossing-stage automated total-station quick reports.
+`di-bao-monitoring-skill` is a Chinese-first AI-agent skill package for rail transit protection-zone monitoring workflows. It supports report drafting, monitoring plans, initial-value documents, periodic reports, warning workflows, and crossing-stage automated total-station quick reports. The bundled npm installer targets Codex by default, while the Markdown skill, references, templates, and scripts can be reused by other agent platforms.
 
 Install:
 

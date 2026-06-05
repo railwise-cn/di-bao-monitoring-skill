@@ -1,7 +1,7 @@
 {
   "name": "di-bao-monitoring-skill",
-  "version": "0.1.1",
-  "description": "Chinese-first Codex skill for rail transit protection-zone monitoring plans, reports, warnings, and crossing-stage automated total-station quick reports.",
+  "version": "0.1.2",
+  "description": "Chinese-first AI-agent skill package for rail transit protection-zone monitoring plans, reports, warnings, and crossing-stage automated total-station quick reports.",
   "license": "MIT",
   "type": "commonjs",
   "bin": {
@@ -18,6 +18,8 @@
   },
   "keywords": [
     "codex",
+    "ai-agent",
+    "llm",
     "skill",
     "monitoring",
     "rail-transit",
