@@ -2,9 +2,9 @@
 
 `di-bao-monitoring-skill` 是一个面向 AI 智能体的地保监测专业技能包，用于轨道交通控制保护区、地铁保护区、既有线路保护区等第三方监测工作。
 
-它默认以中文使用，适合编制监测方案、初始值资料、日报周报月报、预警/报警/消警资料、项目总结，以及穿越工况下的 15 分钟、2 小时、4 小时自动化全站仪监测快报。
+它默认以中文使用，适合编制监测方案、初始值资料、日报周报月报、预警/报警/消警资料、项目总结，以及穿越工况下的 15 分钟、2 小时、4 小时自动化全站仪监测快报和上海华桓静力水准沉降快报。
 
-当前 npm 安装器默认适配 Codex 的 skills 目录；技能内容本身是 Markdown + 模板 + 脚本结构，其他支持自定义技能、知识库、系统提示词或工具脚本的智能体平台也可以复用。
+当前安装器默认适配 Codex 的 skills 目录；技能内容本身是 Markdown + 模板 + 脚本结构，其他支持自定义技能、知识库、系统提示词或工具脚本的智能体平台也可以复用。本仓库目前通过 GitHub 源安装，尚未发布到 npm registry。
 
 GitHub 仓库：
 
@@ -19,9 +19,10 @@ GitHub 仓库：
 - 地保监测日报、周报、月报、监护记录。
 - 盾构、顶管、管廊、基坑、道路、桥梁等穿越或邻近轨道交通结构期间的高频快报。
 - 自动化全站仪平台取数、平差成果整理、点名映射、桥墩沉降/位移/倾斜计算。
+- 上海华桓静力水准平台/API 取数、`findSZByIdAndDate type=2` 沉降成果整理、单次/累计沉降快报。
 - 预警、报警、红色预警、消警申请、专题分析和项目总结。
 
-当前自动化脚本重点支持“全站仪/测量机器人”数据。静力水准、人工监测和其他设备可以按 skill 内的资料规则继续扩展。
+当前自动化脚本重点支持两类穿越期高频报表：全站仪/测量机器人平差成果快报、上海华桓静力水准沉降快报。人工监测和其他设备可以按 skill 内的资料规则继续扩展。
 
 ## 方案编制能力
 
@@ -210,7 +211,7 @@ di-bao-monitoring-skill install --force
 安装指定版本：
 
 ```bash
-npm install -g github:railwise-cn/di-bao-monitoring-skill#v0.1.4
+npm install -g github:railwise-cn/di-bao-monitoring-skill#v0.2.0
 di-bao-monitoring-skill install --force
 ```
 
@@ -239,10 +240,16 @@ di-bao-monitoring-skill version
 ```
 
 ```text
+使用 $di-bao-monitoring，从上海华桓静力水准平台生成 4 小时沉降快报。
+```
+
+```text
 使用 $di-bao-monitoring，根据这些数据判断是否预警，并生成监测快报。
 ```
 
 当用户提到“穿越期地保监测报表”“自动化全站仪快报”“15 分钟/2 小时/4 小时出报”等任务时，skill 会提示用户补齐平台地址、项目 ID、平差网 ID、报表截止时间、施工工况、点名映射和图片资料。
+
+当用户提到“上海华桓”“静力水准”“沉降自动化平台”“静力水准 15 分钟/2 小时/4 小时快报”等任务时，skill 会提示用户补齐华桓平台入口、登录方式、项目 ID、报表截止时间、上期参考时间、`sampMinutes`、测点分区/点名映射、阈值、模板和图片资料。
 
 ## 自动化全站仪快报数据口径
 
@@ -257,6 +264,32 @@ di-bao-monitoring-skill version
 - 测站 `CZ` 和测量基点 `JD` 不作为监测点参与主表统计。
 - 报表可见点名应通过点名映射显示为 `MCC/MCW/MCQX` 等工程点名，不直接显示平台原始 `S12/X12` 等点名。
 
+## 上海华桓静力水准沉降快报口径
+
+静力水准快报只处理沉降/竖向位移，不套用全站仪平差坐标、水平位移或桥墩倾斜计算规则。
+
+- 数据来源优先使用华桓接口 `POST /API/findSZByIdAndDate`，其中 `type=2` 为沉降/静力水准成果。
+- `本次变化量` 取接口 `curOffset`，表示 `statDate` 相对 `endDate` 的本期沉降变化。
+- `累计变化量` 取接口 `totalOffset`，表示本期相对平台初始值的累计变化。
+- `本次测值` 取 `curValue`，`参考测值` 取 `refValue`。
+- 未明确项目正负号时，报表备注暂写“+ 为隆起，- 为下沉（待项目确认）”。
+- 缺测、离线、异常值不得填 0；保留 `/` 并在备注写明接口状态。
+
+取数脚本：
+
+```bash
+python3 ~/.codex/skills/di-bao-monitoring/scripts/fetch_shhh_static_level.py \
+  --project-id "{{华桓项目ID}}" \
+  --project-name "{{项目全称}}" \
+  --report-cadence "4h" \
+  --report-cutoff-time "{{YYYY-MM-DD HH:mm:ss}}" \
+  --previous-time "{{YYYY-MM-DD HH:mm:ss}}" \
+  --samp-minutes 60 \
+  --output-dir "平台数据输出"
+```
+
+如果不知道华桓项目 ID，应先登录 `http://yun.shhhcl.com/project/login#{{入口号}}`，按用户名可见项目查找并人工确认项目 ID、项目名称、测点和分区；确认后再用接口取数。
+
 ## 平台取数配置
 
 不要把平台账号、密码、Cookie、项目私有 URL 写进 GitHub、README、报告、PDF 或 skill 文件。请在运行时通过环境变量或命令参数传入。
@@ -270,6 +303,11 @@ di-bao-monitoring-skill version
 | `DIBAO_ADJUST_NET_ID` | 平差网 ID |
 | `DIBAO_PLATFORM_USER` | 平台用户名 |
 | `DIBAO_PLATFORM_PASSWORD` | 平台密码 |
+| `SHHH_PLATFORM_URL` | 上海华桓平台入口，例如 `http://yun.shhhcl.com/project/login#{{入口号}}` |
+| `SHHH_API_BASE` | 上海华桓接口地址，默认 `http://yun.shhhcl.com/TESTAPI` |
+| `SHHH_PLATFORM_USER` | 上海华桓平台用户名 |
+| `SHHH_PLATFORM_PASSWORD` | 上海华桓平台密码；仅运行时使用，不提交 |
+| `SHHH_PROJECT_ID` | 上海华桓项目 ID |
 | `DIBAO_PROJECT_NAME` | 项目全称，用于文件名和报表页眉 |
 | `DIBAO_WORK_CONDITION` | 当前施工工况 |
 | `DIBAO_CUTOFF_TIME` | 报表名义截止时间，不填则按当前时间取最近 4 小时整点 |
@@ -390,6 +428,7 @@ di-bao-monitoring-skill/
 | `fetch_adjusted_total_station.py` | 登录平台，抓取平差批次、平差报告、点位坐标、平台初始值，生成 CSV |
 | `build_crossing_total_station_xlsx.py` | 根据 CSV、模板、图片和点名映射生成 A3 横版快报；使用完整模板时同步填封面和各测项明细页 |
 | `run_crossing_4h_report.sh` | 通用 4 小时快报导出脚本；默认同时导出单页快报和 5 页完整报表 |
+| `fetch_shhh_static_level.py` | 调用上海华桓静力水准接口，按项目 ID 和时间窗口导出沉降 CSV/JSON/摘要 |
 | `summarize_crossing_total_station.py` | 对结构化监测 CSV 做汇总和预警判定 |
 | `evaluate_alarms.py` | 对通用监测数据进行阈值判定 |
 
@@ -473,14 +512,14 @@ git push
 发布新版本时，更新 `package.json` 中的 `version`，再打 tag：
 
 ```bash
-git tag v0.1.4
-git push origin main v0.1.4
-gh release create v0.1.4 --title "v0.1.4" --notes "更新说明"
+git tag v0.2.0
+git push origin main v0.2.0
+gh release create v0.2.0 --title "v0.2.0" --notes "更新说明"
 ```
 
 ## English Summary
 
-`di-bao-monitoring-skill` is a Chinese-first AI-agent skill package for rail transit protection-zone monitoring workflows. It supports report drafting, monitoring plans, initial-value documents, periodic reports, warning workflows, and crossing-stage automated total-station quick reports. The bundled npm installer targets Codex by default, while the Markdown skill, references, templates, and scripts can be reused by other agent platforms.
+`di-bao-monitoring-skill` is a Chinese-first AI-agent skill package for rail transit protection-zone monitoring workflows. It supports report drafting, monitoring plans, initial-value documents, periodic reports, warning workflows, crossing-stage automated total-station quick reports, and Shanghai Huahuan static-level settlement quick reports. The bundled GitHub-source npm installer targets Codex by default, while the Markdown skill, references, templates, and scripts can be reused by other agent platforms.
 
 Install:
 

@@ -1,7 +1,7 @@
 {
   "name": "di-bao-monitoring-skill",
-  "version": "0.1.4",
-  "description": "Chinese-first AI-agent skill package for rail transit protection-zone monitoring plans, reports, warnings, and crossing-stage automated total-station quick reports.",
+  "version": "0.2.0",
+  "description": "Chinese-first AI-agent skill package for rail transit protection-zone monitoring plans, reports, warnings, automated total-station quick reports, and Shanghai Huahuan static-level settlement quick reports.",
   "license": "MIT",
   "type": "commonjs",
   "bin": {
@@ -24,6 +24,9 @@
     "monitoring",
     "rail-transit",
     "total-station",
+    "static-level",
+    "settlement",
+    "huahuan",
     "geotechnical"
   ],
   "engines": {

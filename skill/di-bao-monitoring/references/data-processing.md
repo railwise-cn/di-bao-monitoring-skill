@@ -6,6 +6,7 @@
 
 - 归一化 CSV 字段
 - 穿越全站仪 CSV 字段
+- 穿越静力水准 CSV 字段
 - Excel 处理
 - Word 处理
 - PDF 处理
@@ -60,6 +61,35 @@
 - 2 小时和 4 小时报若同时需要“时段最大值”，仍应保留表内最新批次数据，并在汇总或备注中说明时段最大值。
 - 若源表已按项目坐标方向计算水平位移，沿用源表；若只有坐标差，必须先按本项目方向轴转换后再填入。
 - 缺测行可保留点号和分区，数值留空或 `/`，并在 `validity`、`note` 说明原因。
+
+## 穿越静力水准 CSV 字段
+
+穿越工况上海华桓静力水准沉降快报优先使用 `assets/crossing-static-level-input-template.csv`。该模板保留通用字段，并增加接口追溯字段：
+
+| 字段 | 含义 |
+|---|---|
+| `project_name` | 项目全称 |
+| `report_cadence` | 15min、2h、4h 或项目指定间隔 |
+| `previous_time`、`current_time` | 华桓接口参考时间、本期时间 |
+| `monitoring_item` | `结构沉降`、`道床沉降`、`沉降` 等，不写水平位移或倾斜 |
+| `monitoring_method` | `上海华桓静力水准自动化监测平台` |
+| `point_id` | 报表点号，默认取接口 `name`，映射后写确认后的报表点号 |
+| `sensor_sn` | 传感器编号，取接口 `sn` |
+| `current_change_mm` | 本次变化，取接口 `curOffset` |
+| `cumulative_mm` | 累计变化，取接口 `totalOffset` |
+| `current_value`、`previous_value` | 本期测值 `curValue`、参考测值 `refValue` |
+| `current_original_value`、`previous_original_value` | 本期/参考原始值 |
+| `shhh_project_id`、`shhh_point_id` | 华桓项目和测点追溯 ID |
+| `sample_minutes` | `findSZByIdAndDate` 的 `sampMinutes`，单位分钟 |
+
+整理原则：
+
+- 华桓静力水准接口 `findSZByIdAndDate` 中 `type=2` 为沉降，`curOffset` 为本期变化，`totalOffset` 为累计变化；不要再用人工初始值或全站仪坐标公式二次反算。
+- 报表截止时间和接口本期时间必须一致；历史补报时显式传入 `statDate` 和 `endDate`，不能用平台最新时间回填历史报表。
+- `sampMinutes` 是接口取样时长，需按项目设置确认；不要自动等同于 15 分钟、2 小时或 4 小时报表频率。
+- 单位优先用接口 `unit`；为空时按静力水准沉降 mm 口径处理，并在源摘要中留痕。
+- 正负号方向必须写入报表备注；没有项目说明时先标注待确认。
+- 缺测、离线、异常状态不得填 0；数值留空或 `/`，并在 `validity`、`note` 说明。
 
 ## Excel 处理
 

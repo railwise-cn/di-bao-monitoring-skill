@@ -22,6 +22,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
 from openpyxl import Workbook, load_workbook
+from openpyxl.chart import LineChart, Reference
 from openpyxl.drawing.image import Image as XLImage
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter, range_boundaries
@@ -153,6 +154,12 @@ def fmt_02_text(value: float | None) -> str:
     return f"{Decimal(str(value)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):.2f}"
 
 
+def fmt_05_value(value: float | None) -> float | str:
+    if value is None:
+        return "/"
+    return float(Decimal(str(value)).quantize(Decimal("0.00001"), rounding=ROUND_HALF_UP))
+
+
 def is_station_or_control_point(point_name: str) -> bool:
     upper = point_name.upper()
     return upper.startswith("CZ") or upper.startswith("JD")
@@ -250,6 +257,46 @@ def report_time_matches(override: dict[str, object], current_time: str) -> bool:
     return False
 
 
+def override_direction(override: dict[str, object]) -> str:
+    raw = " ".join(
+        str(override.get(key) or "")
+        for key in ("direction", "direction_label", "方向", "备注", "note")
+    )
+    if "南北" in raw or "北" in raw or "north" in raw.lower():
+        return "north"
+    if "东西" in raw or "东" in raw or "east" in raw.lower():
+        return "east"
+    return ""
+
+
+def normalize_override_item(item: str, override: dict[str, object]) -> str:
+    text = str(item or "").strip()
+    direction = override_direction(override)
+    if text in {"垂直位移", "横向变形量", "纵向变形量"}:
+        return text
+    if "沉降" in text or "竖向" in text or "垂直" in text:
+        return "垂直位移"
+    if "水平" in text or "位移" in text:
+        if direction == "north":
+            return "纵向变形量"
+        return "横向变形量"
+    if "南北" in text or "纵向" in text:
+        return "纵向变形量"
+    if "东西" in text or "横向" in text:
+        return "横向变形量"
+    return text
+
+
+def override_metric_value(override: dict[str, object], *keys: str) -> float | None:
+    for key in keys:
+        if key not in override:
+            continue
+        value = parse_float(override.get(key))
+        if value is not None:
+            return value
+    return None
+
+
 def apply_manual_metric_overrides(
     pivot: dict[str, dict[str, object]],
     rows: list[dict[str, str]],
@@ -263,26 +310,58 @@ def apply_manual_metric_overrides(
         if current_time and not report_time_matches(override, current_time):
             continue
         point = str(override.get("point_id") or override.get("point") or override.get("点号") or "").strip()
-        item = str(override.get("monitoring_item") or override.get("item") or override.get("监测项目") or "").strip()
+        item = normalize_override_item(
+            str(override.get("monitoring_item") or override.get("item") or override.get("监测项目") or "").strip(),
+            override,
+        )
         if not point or not item or point not in pivot:
             continue
         item_data = pivot[point].setdefault(item, {})
         if not isinstance(item_data, dict):
             item_data = {}
             pivot[point][item] = item_data
-        for source_key, target_key in (
-            ("current_change_mm", "current"),
-            ("current", "current"),
-            ("本次变化值", "current"),
-            ("cumulative_mm", "cumulative"),
-            ("cumulative", "cumulative"),
-            ("累计变化值", "cumulative"),
-        ):
-            if source_key not in override:
-                continue
-            value = parse_float(override.get(source_key))
-            if value is not None:
-                item_data[target_key] = value
+        current_value = override_metric_value(override, "current_change_mm", "current", "本次变化值", "本次变量")
+        cumulative_value = override_metric_value(override, "cumulative_mm", "cumulative", "累计变化值", "累计变量")
+        if current_value is not None:
+            item_data["current"] = current_value
+        if cumulative_value is not None:
+            item_data["cumulative"] = cumulative_value
+
+
+def apply_manual_coordinate_overrides(
+    initial_coords: dict[str, dict[str, float]],
+    previous_coords: dict[str, dict[str, float]],
+    current_coords: dict[str, dict[str, float]],
+    rows: list[dict[str, str]],
+    path: Path | None,
+) -> None:
+    overrides = load_manual_metric_overrides(path)
+    if not overrides:
+        return
+    current_time = normalized_report_time(first_value(rows, "current_time", "本次监测时间"))
+    axis_by_item = {
+        "纵向变形量": "X",
+        "横向变形量": "Y",
+        "垂直位移": "H",
+    }
+    for override in overrides:
+        if current_time and not report_time_matches(override, current_time):
+            continue
+        point = str(override.get("point_id") or override.get("point") or override.get("点号") or "").strip()
+        item = normalize_override_item(
+            str(override.get("monitoring_item") or override.get("item") or override.get("监测项目") or "").strip(),
+            override,
+        )
+        axis = axis_by_item.get(item)
+        if not point or not axis:
+            continue
+        current_coords.setdefault(point, {})
+        current_change = override_metric_value(override, "current_change_mm", "current", "本次变化值", "本次变量")
+        cumulative = override_metric_value(override, "cumulative_mm", "cumulative", "累计变化值", "累计变量")
+        if current_change is not None and previous_coords.get(point, {}).get(axis) is not None:
+            current_coords[point][axis] = float(previous_coords[point][axis]) + current_change / 1000.0
+        elif cumulative is not None and initial_coords.get(point, {}).get(axis) is not None:
+            current_coords[point][axis] = float(initial_coords[point][axis]) + cumulative / 1000.0
 
 
 def load_alias_map(path: Path | None) -> dict[str, object]:
@@ -1421,6 +1500,63 @@ def set_coord_xy_groups(
     ws.cell(row_index, 10).value = coord_value(current_coords, point, "Y")
 
 
+def style_detail_numeric_columns(ws, rows: range, columns: tuple[int, ...], number_format: str) -> None:
+    for row_index in rows:
+        for col_index in columns:
+            ws.cell(row_index, col_index).number_format = number_format
+
+
+def clear_charts(ws) -> None:
+    ws._charts = []
+
+
+def add_metric_line_chart(
+    ws,
+    title: str,
+    category_col: int,
+    data_cols: tuple[int, int],
+    min_row: int,
+    max_row: int,
+    anchor: str,
+    y_axis_format: str,
+) -> None:
+    chart = LineChart()
+    chart.title = title
+    chart.style = 13
+    chart.y_axis.title = "变化量"
+    chart.x_axis.title = "测点编号"
+    chart.y_axis.numFmt = y_axis_format
+    chart.height = 7.2
+    chart.width = 18
+    for col_index in data_cols:
+        data = Reference(ws, min_col=col_index, min_row=min_row, max_row=max_row)
+        chart.add_data(data, titles_from_data=True)
+    categories = Reference(ws, min_col=category_col, min_row=min_row + 1, max_row=max_row)
+    chart.set_categories(categories)
+    ws.add_chart(chart, anchor)
+
+
+def add_tilt_line_chart(ws) -> None:
+    helper_start = 12
+    helper_rows = (
+        (12, "东西方向"),
+        (14, "东西方向"),
+        (16, "南北方向"),
+        (18, "南北方向"),
+    )
+    ws["R11"] = "测点编号"
+    ws["S11"] = "本次变量"
+    ws["T11"] = "累计变量"
+    for offset, (source_row, direction) in enumerate(helper_rows):
+        row_index = helper_start + offset
+        ws[f"R{row_index}"] = f'=A{source_row}&" {direction}"'
+        ws[f"S{row_index}"] = f"=B{source_row}"
+        ws[f"T{row_index}"] = f"=D{source_row}"
+        ws[f"S{row_index}"].number_format = "0.00000"
+        ws[f"T{row_index}"].number_format = "0.00000"
+    add_metric_line_chart(ws, "桥墩倾斜", 18, (19, 20), 11, 15, "A35", "0.00000")
+
+
 def format_report_date(value: str) -> str:
     parsed = parse_report_datetime(value)
     if parsed is None:
@@ -1456,6 +1592,7 @@ def fill_complete_detail_sheets(
     current_time: str,
     condition_text: str,
     implementation_unit: str,
+    manual_overrides_path: Path | None = None,
 ) -> None:
     required = {"封面", "桥墩沉降（自动化）", "桥墩水平位移（自动化）", "桥墩倾斜（自动化）"}
     if not required.issubset(set(wb.sheetnames)):
@@ -1472,6 +1609,7 @@ def fill_complete_detail_sheets(
     previous_coords = load_named_coord_records(previous_path)
     current_coords = load_named_coord_records(current_path)
     initial_coords = initial_coord_records_from_rows(rows)
+    apply_manual_coordinate_overrides(initial_coords, previous_coords, current_coords, rows, manual_overrides_path)
     condition_full = f"当前工况：{condition_text}。本次自动化全站仪数据取自监测平台，监测时间 {current_time}；出报频率：4h。"
 
     cover = wb["封面"]
@@ -1501,8 +1639,12 @@ def fill_complete_detail_sheets(
         settlement[f"M{row_index}"] = coord_value(previous_coords, point, "H")
         settlement[f"O{row_index}"] = coord_value(current_coords, point, "H")
         settlement[f"Q{row_index}"] = f"{int(suffix)}#桥墩"
+    style_detail_numeric_columns(settlement, range(12, 14), (2, 5, 8), "0.0")
+    style_detail_numeric_columns(settlement, range(12, 14), (10, 13, 15), "0.00000")
     settlement["A32"] = "报警值：预警值±5mm，报警值±7mm，控制值±10mm。"
     settlement.print_area = "A1:R44"
+    clear_charts(settlement)
+    add_metric_line_chart(settlement, "桥墩沉降", 1, (2, 8), 11, 13, "A35", "0.0")
 
     horizontal = wb["桥墩水平位移（自动化）"]
     horizontal["A2"] = f"监测单位：{implementation_unit}"
@@ -1527,8 +1669,12 @@ def fill_complete_detail_sheets(
         set_coord_xy_groups(horizontal, row_index, point, initial_coords, previous_coords, current_coords)
         horizontal[f"K{row_index}"] = f"{int(suffix)}#桥墩"
         horizontal[f"L{row_index}"] = direction
+    style_detail_numeric_columns(horizontal, range(12, 16), (2, 3, 4), "0.0")
+    style_detail_numeric_columns(horizontal, range(12, 16), (5, 6, 7, 8, 9, 10), "0.00000")
     horizontal["A32"] = "报警值：预警值±5mm，报警值±7mm，控制值±10mm。"
     horizontal.print_area = "A1:L47"
+    clear_charts(horizontal)
+    add_metric_line_chart(horizontal, "桥墩水平位移", 1, (2, 4), 11, 15, "A35", "0.0")
 
     tilt = wb["桥墩倾斜（自动化）"]
     tilt["A2"] = f"监测单位：{implementation_unit}"
@@ -1556,8 +1702,12 @@ def fill_complete_detail_sheets(
         set_coord_triplet(tilt, start_row + 1, lower, initial_coords, previous_coords, current_coords)
         tilt[f"N{start_row}"] = f"{int(suffix)}#桥墩"
         tilt[f"O{start_row}"] = direction
+    style_detail_numeric_columns(tilt, range(12, 20), (2, 3, 4), "0.00000")
+    style_detail_numeric_columns(tilt, range(12, 20), (5, 6, 7, 8, 9, 10, 11, 12, 13), "0.00000")
     tilt["A32"] = "报警值：倾斜：预警值1.0‰，报警值1.4‰，控制值2.0‰。"
     tilt.print_area = "A1:O47"
+    clear_charts(tilt)
+    add_tilt_line_chart(tilt)
 
     for sheet_name in ("封面", "桥墩沉降（自动化）", "桥墩水平位移（自动化）", "桥墩倾斜（自动化）"):
         ws = wb[sheet_name]
@@ -1719,7 +1869,7 @@ def build_directional_template_report(
         for point, data in all_pivot.items()
         if not is_station_or_control_point(point)
     }
-    manual_overrides_path = manual_overrides_path or input_csv.with_name("manual_metric_overrides_prj651.json")
+    manual_overrides_path = manual_overrides_path or input_csv.with_name("manual_metric_overrides.json")
     apply_manual_metric_overrides(pivot, rows, manual_overrides_path)
     point_config_path = point_config_path or auto_point_config_path(input_csv)
     point_geometry = point_geometry_from_rows(rows) or load_point_geometry(point_config_path)
@@ -1940,6 +2090,7 @@ def build_directional_template_report(
         current_time,
         condition_text,
         implementation_unit,
+        manual_overrides_path,
     )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1994,7 +2145,7 @@ def build_template_report(
         for point, data in all_pivot.items()
         if not is_station_or_control_point(point)
     }
-    manual_overrides_path = manual_overrides_path or input_csv.with_name("manual_metric_overrides_prj651.json")
+    manual_overrides_path = manual_overrides_path or input_csv.with_name("manual_metric_overrides.json")
     apply_manual_metric_overrides(pivot, rows, manual_overrides_path)
     alias_map = load_alias_map(point_alias_map_path)
     maxima = pick_maxima(pivot)

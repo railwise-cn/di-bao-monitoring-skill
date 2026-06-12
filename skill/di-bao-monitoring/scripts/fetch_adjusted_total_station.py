@@ -675,8 +675,8 @@ def default_start_end() -> tuple[str, str]:
 def main() -> None:
     default_start, default_end = default_start_end()
     parser = argparse.ArgumentParser(description="Fetch adjusted total-station data from the platform.")
-    parser.add_argument("--base-url", default=os.getenv("DIBAO_PLATFORM_BASE_URL"))
-    parser.add_argument("--prjid", default=os.getenv("DIBAO_PLATFORM_PRJID"))
+    parser.add_argument("--base-url", default=os.getenv("DIBAO_PLATFORM_BASE_URL", ""))
+    parser.add_argument("--prjid", default=os.getenv("DIBAO_PLATFORM_PRJID", ""))
     parser.add_argument("--adjust-net-id", help="Adjustment net id; if omitted, discover it from AdjustData.aspx.")
     parser.add_argument("--start-time", default=default_start)
     parser.add_argument("--end-time", default=default_end)
@@ -755,16 +755,14 @@ def main() -> None:
         help="Displayed source/time for the cumulative deformation baseline. For automated reports, use platform initial values, not the manual initial-value report.",
     )
     parser.add_argument("--work-condition", default="{{施工工况}}")
-    parser.add_argument("--influence-zone", default="当前盾构向3号线桥桩影响范围推进")
+    parser.add_argument("--influence-zone", default="{{影响范围}}")
     parser.add_argument("--cookie", help="Authenticated Cookie header copied from browser developer tools.")
     parser.add_argument("--username", default=os.getenv("DIBAO_PLATFORM_USER"))
     parser.add_argument("--password", default=os.getenv("DIBAO_PLATFORM_PASSWORD"))
     args = parser.parse_args()
 
-    if not args.base_url:
-        raise SystemExit("Provide --base-url or DIBAO_PLATFORM_BASE_URL.")
-    if not args.prjid:
-        raise SystemExit("Provide --prjid or DIBAO_PLATFORM_PRJID.")
+    if not args.base_url or not args.prjid:
+        raise SystemExit("Provide --base-url/--prjid or set DIBAO_PLATFORM_BASE_URL/DIBAO_PLATFORM_PRJID.")
 
     base_url = normalize_base_url(args.base_url)
     session = requests.Session()
