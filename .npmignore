@@ -3,7 +3,12 @@
 node_modules/
 *.log
 .DS_Store
+._*
+__MACOSX/
 __pycache__/
 *.pyc
+Thumbs.db
+desktop.ini
+~$*
 平台数据输出/
 pdfcheck/
