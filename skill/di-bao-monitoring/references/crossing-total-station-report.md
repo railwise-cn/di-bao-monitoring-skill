@@ -160,6 +160,13 @@ Excel 快报应采用 A3 横向通栏排版，保留密集黑色表格线、上�
 9. 备注：正负号、阈值、速率规则、色标。
 10. 四、结论与评价：数据稳定性、报警状态、施工建议；底部 footer 写项目实施单位和 `轨道交通控制保护区监测快报`，不保留空边框行。
 
+跨平台导出要求：
+
+- 正式 PDF 尽量固定在同一导出环境生成，例如同一版本 LibreOffice headless 或同一台 Windows Excel。Mac Excel、Windows Excel、WPS、LibreOffice 的字体度量、默认打印机、图片锚点和分页可能不同。
+- 模板必须固定 A3 横向、打印区域、缩放到 1 页宽/1 页高、行高列宽和字体；Windows 缺少 `SimSun/宋体` 时应先安装或按项目统一字体替换。
+- 交付前以最终 PDF 核对分页、图片裁切、图表位置、表格边框和页数，不以 Excel 编辑界面作为唯一判断。
+- 发送给 Windows 用户或打包 zip 前运行 `scripts/clean_report_artifacts.py "{{输出目录}}" --check-archives`，清理 `.DS_Store`、`__MACOSX/`、`._*`、`Thumbs.db`、`desktop.ini`、`~$*` 等缓存或临时文件。
+
 ## 色标与备注
 
 - 黄色：当前穿越正投影区或重点影响区段。

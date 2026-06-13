@@ -134,6 +134,10 @@ if [[ -f "$FULL_TEMPLATE_PATH" ]]; then
   fi
 fi
 
+if [[ "${DIBAO_SKIP_ARTIFACT_CLEANUP:-0}" != "1" ]]; then
+  "$PYTHON_BIN" "$SCRIPT_DIR/clean_report_artifacts.py" "$OUTPUT_DIR" --quiet || true
+fi
+
 echo "Exported:"
 echo "xlsx=$XLSX_PATH"
 [[ -f "$PDF_PATH" ]] && echo "pdf=$PDF_PATH"

@@ -211,7 +211,7 @@ di-bao-monitoring-skill install --force
 安装指定版本：
 
 ```bash
-npm install -g github:railwise-cn/di-bao-monitoring-skill#v0.2.0
+npm install -g github:railwise-cn/di-bao-monitoring-skill#v0.2.1
 di-bao-monitoring-skill install --force
 ```
 
@@ -323,6 +323,7 @@ python3 ~/.codex/skills/di-bao-monitoring/scripts/fetch_shhh_static_level.py \
 | `DIBAO_POINT_ALIAS_MAP` | 点名映射 JSON |
 | `DIBAO_MANUAL_OVERRIDES` | 工程师人工复核修正 JSON |
 | `DIBAO_SOFFICE` | LibreOffice `soffice` 路径，用于导出 PDF |
+| `DIBAO_SKIP_ARTIFACT_CLEANUP` | 设为 `1` 时跳过输出目录缓存文件自动清理 |
 
 示例：
 
@@ -366,6 +367,46 @@ export DIBAO_CUTOFF_TIME="2026-06-05 12:00:00"
 - 默认不发送微信、邮件或任何即时通讯消息。
 - PDF 导出依赖 LibreOffice；如果系统没有 LibreOffice，脚本仍会保留 Excel。
 - 断电、设备离线或平台未生成当前批次时，不应把上一批旧数据误标为当前报表。
+- 脚本默认会清理输出目录中的 `.DS_Store`、`__MACOSX`、`._*`、`Thumbs.db`、`desktop.ini`、`~$*`、`__pycache__` 等缓存或临时文件；如需跳过，设置 `DIBAO_SKIP_ARTIFACT_CLEANUP=1`。
+
+## 清理隐藏/缓存文件
+
+在 Mac 上压缩文件夹、Windows 上打开 Excel、或 Python 脚本运行后，目录里可能出现系统缓存或临时文件。交付报表、打包 zip、发给 Windows 用户前，建议运行：
+
+```bash
+~/.codex/skills/di-bao-monitoring/scripts/clean_report_artifacts.py "平台数据输出"
+```
+
+只检查不删除：
+
+```bash
+~/.codex/skills/di-bao-monitoring/scripts/clean_report_artifacts.py "平台数据输出" --dry-run
+```
+
+同时检查 zip/xlsx/docx/pptx 内部是否含有 `__MACOSX`、`._*` 等隐藏条目：
+
+```bash
+~/.codex/skills/di-bao-monitoring/scripts/clean_report_artifacts.py "平台数据输出" --check-archives
+```
+
+脚本会清理：
+
+- macOS：`.DS_Store`、`__MACOSX/`、`._*`。
+- Windows：`Thumbs.db`、`desktop.ini`。
+- Office：`~$*.xlsx`、`~$*.docx` 等临时锁文件。
+- Python：`__pycache__/`、`*.pyc`、`*.pyo`。
+
+## 跨平台 Excel/PDF 版式
+
+同一个 `.xlsx` 在 Mac Excel、Windows Excel、WPS、LibreOffice 中打开或导出 PDF，可能出现行高、分页、字体宽度、图片锚点和图表位置差异。这通常不是数据计算错误，而是渲染引擎、系统字体和默认打印机不同导致。
+
+正式留档建议：
+
+- 固定最终 PDF 导出环境：同一台机器、同一版本 Excel 或同一版本 LibreOffice。
+- 优先使用脚本内的 LibreOffice headless 导出，并通过 `DIBAO_SOFFICE` 指定固定路径。
+- 模板保持固定打印区域、横向 A3、缩放到 1 页宽/1 页高、固定行高列宽。
+- Windows 机器缺少 `SimSun/宋体` 或字体被 WPS 替换时，应先安装/确认字体，再导出 PDF。
+- 交付前以最终 PDF 为准核对分页、图片裁切、图表位置和表格边框；不要只看 Excel 编辑界面。
 
 ## 点名映射
 
@@ -428,6 +469,7 @@ di-bao-monitoring-skill/
 | `fetch_adjusted_total_station.py` | 登录平台，抓取平差批次、平差报告、点位坐标、平台初始值，生成 CSV |
 | `build_crossing_total_station_xlsx.py` | 根据 CSV、模板、图片和点名映射生成 A3 横版快报；使用完整模板时同步填封面和各测项明细页 |
 | `run_crossing_4h_report.sh` | 通用 4 小时快报导出脚本；默认同时导出单页快报和 5 页完整报表 |
+| `clean_report_artifacts.py` | 清理 macOS/Windows/Office/Python 缓存文件，并可检查压缩包或 Office 文件内部隐藏条目 |
 | `fetch_shhh_static_level.py` | 调用上海华桓静力水准接口，按项目 ID 和时间窗口导出沉降 CSV/JSON/摘要 |
 | `summarize_crossing_total_station.py` | 对结构化监测 CSV 做汇总和预警判定 |
 | `evaluate_alarms.py` | 对通用监测数据进行阈值判定 |
@@ -476,6 +518,18 @@ di-bao-monitoring-skill where
 export DIBAO_SOFFICE="/Applications/LibreOffice.app/Contents/MacOS/soffice"
 ```
 
+### Windows 打开的 Excel 或导出的 PDF 版式不一致
+
+优先确认是否使用了同一模板、同一字体、同一导出引擎和同一打印缩放设置。正式报表建议统一在固定环境导出 PDF；Windows Excel、WPS、Mac Excel 和 LibreOffice 的分页与图片锚点可能不同，最终以 PDF 留档版为准。
+
+### Windows 看到 `.DS_Store`、`__MACOSX` 或 `._*`
+
+这些通常来自 Mac Finder 压缩或系统资源叉，不是报表数据。重新打包前运行：
+
+```bash
+~/.codex/skills/di-bao-monitoring/scripts/clean_report_artifacts.py "平台数据输出" --check-archives
+```
+
 ### 平台没有当前批次
 
 如果现场断电、设备离线或平台平差未完成，脚本不会把旧数据误标为当前报表。应等待平台生成当前批次，或明确指定补报时间和上一批次口径。
@@ -512,9 +566,9 @@ git push
 发布新版本时，更新 `package.json` 中的 `version`，再打 tag：
 
 ```bash
-git tag v0.2.0
-git push origin main v0.2.0
-gh release create v0.2.0 --title "v0.2.0" --notes "更新说明"
+git tag v0.2.1
+git push origin main v0.2.1
+gh release create v0.2.1 --title "v0.2.1" --notes "更新说明"
 ```
 
 ## English Summary
