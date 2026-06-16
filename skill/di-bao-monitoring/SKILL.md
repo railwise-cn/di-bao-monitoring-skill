@@ -1,6 +1,6 @@
 ---
 name: di-bao-monitoring
-description: "用于轨道交通控制保护区/地铁保护区第三方监测成果编制：资料清单、方案、测点埋设验收、初始值、控制网联测、日报周报月报、穿越工况15分钟/2小时/4小时自动化全站仪快报、上海华桓静力水准沉降快报、监测数据统计、预警报警消警、项目总结和评审回复。适用于基坑、盾构、顶管、道路、桥梁、高架、车站、区间、桥墩、桥面等外部施工影响既有轨道交通结构的地保监测。"
+description: "用于轨道交通控制保护区/地铁保护区第三方监测成果编制：资料清单、方案、测点埋设验收、初始值、控制网联测、日报周报月报、穿越工况15分钟/2小时/4小时自动化全站仪快报、上海华桓静力水准沉降快报、地下盾构/综合管廊穿越既有地下区间联合快报模板、监测数据统计、预警报警消警、项目总结和评审回复。适用于基坑、盾构、顶管、道路、桥梁、高架、车站、区间、桥墩、桥面等外部施工影响既有轨道交通结构的地保监测。"
 ---
 
 # 地保监测综合 Skill
@@ -63,6 +63,7 @@ description: "用于轨道交通控制保护区/地铁保护区第三方监测�
 | 日报、周报、月报、监护记录 | `references/report-workflow.md`、`references/monitoring-catalog.md`、`references/data-processing.md` | 周期报告、数据汇总、趋势分析 |
 | 穿越工况 15 分钟、2 小时、4 小时自动化全站仪快报 | `references/crossing-total-station-report.md`、`references/data-processing.md` | 高频监测快报、全站仪数据汇总、施工工况、报警状态、结论与评价 |
 | 穿越工况上海华桓静力水准沉降快报 | `references/crossing-static-level-report.md`、`references/data-processing.md` | 静力水准沉降数据抓取、单次/累计沉降统计、沉降快报 |
+| 地下盾构穿越既有地下区间，需全站仪平面变形 + 静力水准沉降联合快报/完整报表 | `references/crossing-underground-shield-combined-report.md`、以上两项取数参考 | 通途西路类工程师模板，前台双线快报、静力水准页、分项明细和曲线图 |
 | 预警、报警、红色预警、消警 | `references/warning-workflow.md`、`references/monitoring-catalog.md` | 预警单、报警单、消警申请、专题说明 |
 | 项目结束、停测、总结报告 | `references/initial-and-summary-workflow.md`、`references/report-workflow.md`、`references/data-processing.md` | 项目总结报告、停测依据、成果分析、结论建议 |
 | 解释这个 Skill 的来源或继续优化 | `references/source-analysis.md` | 来源分析、优化建议 |
@@ -205,6 +206,8 @@ python scripts/evaluate_alarms.py input.csv
 
 如果用户说的是“静力水准”“上海华桓”“华桓平台”“沉降自动化平台”“静力水准沉降快报”，不要套用本节全站仪口径，改读 `references/crossing-static-level-report.md`。
 
+如果用户提供的模板或工况类似“通途西路类工程师模板”，或明确为地下盾构/管廊盾构穿越既有地下区间，且全站仪负责平面变形、静力水准负责沉降，应先读 `references/crossing-underground-shield-combined-report.md`，按工程师模板生成联合报表。不要套用高架桥墩 `MCC/MCW/MCQX` 倾斜模板，也不要只输出单页全站仪快报。
+
 用户一提到“穿越期地保监测报表/快报/自动化全站仪报表”时，先判断当前是否处于 RAILWISE-OS Native 模式：
 
 - 若工作区已有 `locked-report-preview.json`，优先使用 OS 已锁定成果，不再追问老平台信息。
@@ -291,6 +294,7 @@ python scripts/build_crossing_total_station_xlsx.py \
 2. 明确时间口径：初始采集时间、上次监测时间、本次监测时间、报告统计时段。
 3. 明确监测方式：本版按自动化全站仪/测量机器人处理；静力水准另行扩展，不混写。
 4. 版式参考样例：微信群发送版优先做 A3 横向单页 Excel 快报，横版通栏排版，密集黑色表格线；“施工工况”“施工进度”“各项数据分析”“结论与评价”必须横向合并成一栏，不要做左右两套重复分栏。“工况及影响范围示意图”应独立成通栏图片区，下面左、右各放一张图；图片必须按图片区裁切填充，不留白、不越界。“平台最新动态”放在图片区下方，做左右两组 4 列信息表。底部放本次最大、累计最大、备注、结论与评价，不保留空边框行。
+   - 地下盾构穿越既有地下区间且用户提供通途西路类工程师模板时，报表不采用桥墩倾斜模板；应按 `references/crossing-underground-shield-combined-report.md` 生成：`前台` 双列上/下行线快报、`前台 (静力水准)` 结构沉降页、`Z1 全 (2)` 和 `Z1 （静力水准)` 数据页、累计曲线图和必要隐藏辅助页。
    - 正式留档/完整报表必须同时输出 5 页版本：封面、全站仪快报、桥墩沉降明细、桥墩水平位移明细、桥墩倾斜明细。完整报表使用 `assets/完整报表模板.xlsx`，导出 PDF 时隐藏 `适配设置页`，不把设置页算入页数。
    - 以后穿越期高频报表默认按项目指定频率生成两套：`{{项目全称}}_{{YYYYMMDD}}_{{小时}}点_{{频率标签}}快报.xlsx/pdf` 和 `{{项目全称}}_{{YYYYMMDD}}_{{小时}}点_{{频率标签}}完整报表.xlsx/pdf`。
 5. 高架桥墩有倾斜监测要求时，必须计算倾斜率。若平台或人工成果已有 `MCQX/倾斜率` 字段，优先直接采用该成果；否则按同一桥墩上下测点成对计算，例如 S12/X12、S13/X13。当前项目按工程师公式：单次倾斜 `((本次S点X-上次S点X)-(本次X点X-上次X点X))/上下点初始三维距离×1000`；累计倾斜 `((本次S点X-初始S点X)-(本次X点X-初始X点X))/上下点初始三维距离×1000`。位移单位为 m，结果单位为 ‰；正值为北方向偏移，负值为南方向偏移。上下点初始三维距离用平台自动化初值 `X/Y/H` 计算，缺失时写“初始三维距离待确认”，不得硬算。
@@ -321,7 +325,7 @@ python scripts/build_crossing_total_station_xlsx.py \
 
 适用表达：“上海华桓静力水准”“华桓平台沉降”“静力水准 15 分钟/2 小时/4 小时报表”“从 `yun.shhhcl.com` 抓沉降数据”。
 
-先读 `references/crossing-static-level-report.md`，再按项目报表模板生成沉降快报。该路线只处理沉降/竖向位移；不要混入全站仪水平位移、桥墩倾斜或全站仪平差坐标公式。
+先读 `references/crossing-static-level-report.md`，再按项目报表模板生成沉降快报。该路线只处理沉降/竖向位移；不要混入全站仪水平位移、桥墩倾斜或全站仪平差坐标公式。若静力水准需要并入地下盾构穿越既有地下区间联合报表，继续读 `references/crossing-underground-shield-combined-report.md`。
 
 用户一提到要从华桓静力水准平台出穿越期报表，先提示补齐：
 
@@ -572,6 +576,7 @@ python scripts/fetch_shhh_static_level.py \
 - `references/scoping-and-pricing.md`：测点、工作量和报价估算。
 - `references/report-workflow.md`：日报、周报、月报流程。
 - `references/crossing-total-station-report.md`：穿越工况自动化全站仪 15 分钟、2 小时、4 小时报表流程。
+- `references/crossing-underground-shield-combined-report.md`：地下盾构穿越既有地下区间的全站仪平面变形 + 静力水准沉降联合快报，按通途西路工程师模板保持版式。
 - `references/initial-and-summary-workflow.md`：初始值采集、测点验收、控制网第 1 期联测、项目总结流程。
 - `references/monitoring-catalog.md`：监测项、点号、频率、阈值和正负号。
 - `references/data-processing.md`：Excel、Word、PDF、CSV 数据提取和归一化。

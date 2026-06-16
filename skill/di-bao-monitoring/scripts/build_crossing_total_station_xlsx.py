@@ -1395,6 +1395,16 @@ def is_directional_template(template_path: Path) -> bool:
     return ws.max_row >= 36 and "桥墩沉降" in values and "水平位移" in values and "桥墩倾斜" in values
 
 
+def is_underground_shield_combined_template(template_path: Path) -> bool:
+    try:
+        wb = load_workbook(template_path, read_only=True, data_only=False)
+    except Exception:
+        return False
+    names = {name.strip() for name in wb.sheetnames}
+    required = {"前台", "前台 (静力水准)", "Z1 全 (2)", "Z1 （静力水准)"}
+    return required.issubset(names)
+
+
 def display_actual_survey_time(value: str) -> str:
     parsed = parse_report_datetime(str(value or "").replace("T", " "))
     if parsed is not None:
@@ -2122,6 +2132,14 @@ def build_template_report(
     work_condition_override: str | None = None,
     manual_overrides_path: Path | None = None,
 ) -> None:
+    if is_underground_shield_combined_template(template_path):
+        raise SystemExit(
+            "Detected an underground-shield combined workbook template "
+            "('前台' + '前台 (静力水准)' + 'Z1 全 (2)'). "
+            "This template must follow references/crossing-underground-shield-combined-report.md "
+            "and combine total-station plane deformation with static-level settlement data. "
+            "Do not use the bridge-pier total-station generator for it."
+        )
     if is_directional_template(template_path):
         build_directional_template_report(
             input_csv,

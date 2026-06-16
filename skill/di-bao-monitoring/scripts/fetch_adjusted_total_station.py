@@ -383,22 +383,38 @@ def parse_adjusted_coordinates(plane_text: str, height_text: str) -> dict[str, d
     return points
 
 
-def point_zone(point_name: str) -> str:
+def point_zone(point_name: str, project_template: str = "bridge-pier") -> str:
     upper = point_name.upper()
     if upper.startswith("CZ"):
         return "测站"
     if upper.startswith("JD"):
         return "测量基点"
+    if project_template == "underground-shield":
+        if upper.startswith("S"):
+            return "上行线"
+        if upper.startswith("X"):
+            return "下行线"
+        return "地下区间监测点"
     match = re.search(r"(\d+)$", point_name)
     if match:
         return f"{int(match.group(1))}号桥墩"
     return "其他监测点"
 
 
-def point_position(point_name: str) -> str:
+def point_position(point_name: str, project_template: str = "bridge-pier") -> str:
     upper = point_name.upper()
     match = re.search(r"(\d+)$", point_name)
     suffix = match.group(1) if match else ""
+    if project_template == "underground-shield":
+        if upper.startswith("S") and suffix:
+            return f"上行线S{int(suffix)}环"
+        if upper.startswith("X") and suffix:
+            return f"下行线X{int(suffix)}环"
+        if upper.startswith("CZ"):
+            return "测站"
+        if upper.startswith("JD"):
+            return "测量基点"
+        return point_name
     if upper.startswith("S") and suffix:
         return f"{int(suffix)}#桥墩上部测点"
     if upper.startswith("X") and suffix:
@@ -540,6 +556,7 @@ def build_csv_rows(
     platform_status: str,
     cumulative_source: str,
     current_change_source: str,
+    project_template: str,
 ) -> list[dict[str, str]]:
     previous_by_name = make_point_index(previous_points)
     current_coords_by_name = make_point_index_by_adjustment(current_coord_records, adjustment_id)
@@ -617,10 +634,10 @@ def build_csv_rows(
                     "current_time": current_time,
                     "monitoring_item": item_name,
                     "monitoring_method": "自动化全站仪（平台平差后变形成果）",
-                    "structure_zone": point_zone(point_name),
+                    "structure_zone": point_zone(point_name, project_template),
                     "point_id": point_name,
                     "ring_no": work_condition,
-                    "position_label": point_position(point_name),
+                    "position_label": point_position(point_name, project_template),
                     "influence_zone": influence_zone,
                     "current_change_mm": format_decimal(current_change),
                     "rate_mm_per_d": "",
@@ -749,6 +766,12 @@ def main() -> None:
     )
     parser.add_argument("--display-current-time", help="Time label printed in report rows instead of the actual platform batch time.")
     parser.add_argument("--display-previous-time", help="Previous-time label printed in report rows instead of the actual reference batch time.")
+    parser.add_argument(
+        "--project-template",
+        choices=["bridge-pier", "underground-shield"],
+        default=os.getenv("DIBAO_PROJECT_TEMPLATE", "bridge-pier"),
+        help="Point zoning template. Use underground-shield for S/X ring points in underground crossing reports.",
+    )
     parser.add_argument(
         "--initial-time",
         default="全站仪自动化平台初始值",
@@ -903,6 +926,7 @@ def main() -> None:
         platform_status=platform_status,
         cumulative_source=args.cumulative_source,
         current_change_source=args.current_change_source,
+        project_template=args.project_template,
     )
     write_csv(csv_path, rows)
 
@@ -924,6 +948,7 @@ def main() -> None:
             f"- 本批点位累计变形：{current_json}",
             f"- 上批点位累计变形：{previous_json}",
             f"- 累计量来源：{args.cumulative_source}；日变量/本次变量来源：{args.current_change_source}。",
+            f"- 项目模板：{args.project_template}。",
             (
                 "- 计算口径：沉降=本次/上次/初值平差Z坐标差，东西向水平位移=Y坐标差，南北向水平位移=X坐标差；"
                 "东西向倾斜=上下点Y坐标位移差/上下点初始三维距离，南北向倾斜=上下点X坐标位移差/"
