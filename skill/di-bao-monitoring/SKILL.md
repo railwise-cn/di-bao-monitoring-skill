@@ -63,7 +63,7 @@ description: "用于轨道交通控制保护区/地铁保护区第三方监测�
 | 日报、周报、月报、监护记录 | `references/report-workflow.md`、`references/monitoring-catalog.md`、`references/data-processing.md` | 周期报告、数据汇总、趋势分析 |
 | 穿越工况 15 分钟、2 小时、4 小时自动化全站仪快报 | `references/crossing-total-station-report.md`、`references/data-processing.md` | 高频监测快报、全站仪数据汇总、施工工况、报警状态、结论与评价 |
 | 穿越工况上海华桓静力水准沉降快报 | `references/crossing-static-level-report.md`、`references/data-processing.md` | 静力水准沉降数据抓取、单次/累计沉降统计、沉降快报 |
-| 地下盾构穿越既有地下区间，需全站仪平面变形 + 静力水准沉降联合快报/完整报表 | `references/crossing-underground-shield-combined-report.md`、以上两项取数参考 | 通途西路类工程师模板，前台双线快报、静力水准页、分项明细和曲线图 |
+| 地下盾构穿越既有地下区间，需全站仪平面变形 + 静力水准沉降联合快报/完整报表 | `references/crossing-underground-shield-combined-report.md`、以上两项取数参考 | 通途西路类工程师模板，前台双线快报、静力水准页、分项明细、曲线图、联合输入契约 |
 | 预警、报警、红色预警、消警 | `references/warning-workflow.md`、`references/monitoring-catalog.md` | 预警单、报警单、消警申请、专题说明 |
 | 项目结束、停测、总结报告 | `references/initial-and-summary-workflow.md`、`references/report-workflow.md`、`references/data-processing.md` | 项目总结报告、停测依据、成果分析、结论建议 |
 | 解释这个 Skill 的来源或继续优化 | `references/source-analysis.md` | 来源分析、优化建议 |
@@ -206,7 +206,15 @@ python scripts/evaluate_alarms.py input.csv
 
 如果用户说的是“静力水准”“上海华桓”“华桓平台”“沉降自动化平台”“静力水准沉降快报”，不要套用本节全站仪口径，改读 `references/crossing-static-level-report.md`。
 
-如果用户提供的模板或工况类似“通途西路类工程师模板”，或明确为地下盾构/管廊盾构穿越既有地下区间，且全站仪负责平面变形、静力水准负责沉降，应先读 `references/crossing-underground-shield-combined-report.md`，按工程师模板生成联合报表。不要套用高架桥墩 `MCC/MCW/MCQX` 倾斜模板，也不要只输出单页全站仪快报。
+如果用户提供的模板或工况类似“通途西路类工程师模板”，或明确为地下盾构/管廊盾构穿越既有地下区间，且全站仪负责平面变形、静力水准负责沉降，应先读 `references/crossing-underground-shield-combined-report.md`，按工程师模板的数据源和展示方式处理联合报表。不要套用高架桥墩 `MCC/MCW/MCQX` 倾斜模板，也不要只输出单页全站仪快报；若当前模板尚未完成自动填报适配，先输出数据源、点名映射、落表位置和模板差异核对。
+
+此类联合报表要先建立 `assets/underground-shield-combined-input-template.json` 同结构的输入契约，明确沉降、水平位移、水平收敛等监测项分别来自全站仪还是静力水准。若用户说“静力水准出沉降/高程变化，全站仪出平面变形”，沉降类前台汇总和 `前台 (静力水准)` 默认使用静力水准 `curOffset/totalOffset`；不得用全站仪 `H/Z` 差值替代，除非工程师明确确认。
+
+拿到新的工程师 workbook 时，先运行模板检查脚本，输出 sheet、打印区域、图表和公式结构摘要，再决定填报映射：
+
+```bash
+python scripts/inspect_underground_shield_template.py "{{工程师模板.xlsx}}" --output "模板结构核对.md"
+```
 
 用户一提到“穿越期地保监测报表/快报/自动化全站仪报表”时，先判断当前是否处于 RAILWISE-OS Native 模式：
 
@@ -591,6 +599,7 @@ python scripts/fetch_shhh_static_level.py \
 - `assets/daily-report-template.md`：日报模板。
 - `assets/crossing-total-station-report-template.md`：穿越工况自动化全站仪高频快报模板。
 - `assets/crossing-total-station-input-template.csv`：穿越工况自动化全站仪数据输入模板。
+- `assets/underground-shield-combined-input-template.json`：地下盾构穿越既有地下区间联合报表输入契约，明确全站仪、静力水准、工况、图片、点名映射和 workbook 落表规则。
 - `assets/weekly-report-template.md`：周报模板。
 - `assets/monthly-report-template.md`：月报模板。
 - `assets/warning-notice-template.md`：预警/报警/消警模板。
@@ -599,6 +608,7 @@ python scripts/fetch_shhh_static_level.py \
 - `scripts/evaluate_alarms.py`：CSV 报警状态判定脚本，支持逐行阈值覆盖。
 - `scripts/summarize_crossing_total_station.py`：穿越工况自动化全站仪 CSV 汇总脚本，输出逐行判定和 Markdown 汇总。
 - `scripts/build_crossing_total_station_xlsx.py`：穿越工况自动化全站仪 A3 横向 Excel 快报生成脚本，输出通栏双图、平台动态、数据表、最大值、备注和结论区；使用 `assets/完整报表模板.xlsx` 时，会同步填充封面和桥墩沉降、水平位移、倾斜明细页。
+- `scripts/inspect_underground_shield_template.py`：检查地下盾构联合报表工程师 workbook 的 sheet、打印区域、公式、图表和图片结构，用于后续实例验证和填报映射。
 
 ## 十六、典型使用示例
 
